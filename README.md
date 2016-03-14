@@ -1,13 +1,13 @@
 # xxhash [![GoDoc](http://godoc.org/github.com/OneOfOne/xxhash?status.svg)](http://godoc.org/github.com/OneOfOne/xxhash) [![Build Status](https://travis-ci.org/OneOfOne/xxhash.svg?branch=master)](https://travis-ci.org/OneOfOne/xxhash)
 --
 
-[xxhash](https://code.google.com/p/xxhash/) ([Copyright](https://code.google.com/p/xxhash/source/browse/trunk/LICENSE) (c) 2012-2014, Yann Collet) is an extremely fast non-cryptographic Hash algorithm, working at speeds close to RAM limits.
+This is a CGO wrapper and a native Go implementation of the excellent [xxhash](https://github.com/Cyan4973/xxHash)* algorithm, an extremely fast non-cryptographic Hash algorithm, working at speeds close to RAM limits.
 
-Supports both the 32bit and 64bit versions of the the algorithm.
+* The C implementation is ([Copyright](https://github.com/Cyan4973/xxHash/blob/master/LICENSE) (c) 2012-2014, Yann Collet)
 
 ## Install
 
-Install *the recommended* pure-go version (much faster with shorter input):
+Install *the recommended* pure-go version (much faster with shorter inputs):
 
 	go get github.com/OneOfOne/xxhash/native
 
@@ -17,15 +17,38 @@ Or to install the CGO wrapper over the original C code (only recommended if hash
 
 ## Features
 
-* The native version is optimized and is as you can get in pure Go.
+* The native version is optimized and is as fast as you can get in pure Go.
 * The native version falls back to a less optimized version on appengine (it uses unsafe).
-* The native version (on non-appengine builds) by default **ignores endianness**, if you require endianness safety (aka same hash on big and little endian systems), build with `-tags be`.
 * Both the native version and the cgo version supports 64bit and 32bit versions of the algorithm.
-* When using the cgo version, it will automaticly fallback to the native version if cgo isn't available.
+* When using the cgo version, it will automatically fallback to the native version if cgo isn't available, you can check the `xxhash.Backend` const.
 
 ## Benchmark
 
 	go test github.com/OneOfOne/xxhash -bench=. -benchmem
+
+### Core i7-4790 @ 3.60GHz, Linux 4.4.1 (64bit), Go dev.ssa (+d3f15ff 2016-02-25)
+
+	BenchmarkXXChecksum32-8                   5000000               499 ns/op
+	BenchmarkXXChecksum32Cgo-8                5000000               601 ns/op
+
+	BenchmarkXXChecksumString32-8             5000000               492 ns/op
+	BenchmarkXXChecksumString32Cgo-8          5000000               607 ns/op
+
+	BenchmarkXXChecksum64-8                  10000000               262 ns/op
+	BenchmarkXXChecksum64Cgo-8               10000000               447 ns/op
+
+	BenchmarkXXChecksumString64-8            10000000               274 ns/op
+	BenchmarkXXChecksumString64Cgo-8         10000000               459 ns/op
+
+	BenchmarkXXChecksum64Short-8            300000000              10.3 ns/op
+	BenchmarkXXChecksum64ShortCgo-8          10000000               285 ns/op
+
+	BenchmarkXXChecksumString64Short-8      200000000              12.2 ns/op
+	BenchmarkXXChecksumString64CgoShort-8    10000000               295 ns/op
+
+	BenchmarkXX64MultiWrites-8                5000000               490 ns/op
+	BenchmarkXX64CgoMultiWrites-8             5000000               819 ns/op
+
 
 ### Core i7-4790 @ 3.60GHz, Linux 4.0 (64bit), Go 1.5 (+433af05 2015-04-30)
 
@@ -86,7 +109,7 @@ Or to install the CGO wrapper over the original C code (only recommended if hash
 
 [Apache v2.0](http://opensource.org/licenses/Apache-2.0)
 
-Copyright 2014 [OneOfOne](https://github.com/OneOfOne/)
+Copyright 2015-2016 Ahmed <[OneOfOne](https://github.com/OneOfOne/)> W.
 
 	Licensed under the Apache License, Version 2.0 (the "License");
 	you may not use this file except in compliance with the License.

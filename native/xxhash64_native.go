@@ -6,11 +6,11 @@ import (
 )
 
 const (
-	prime64x1 uint64 = 11400714785074694791
-	prime64x2        = 14029467366897019727
-	prime64x3        = 1609587929392839161
-	prime64x4        = 9650029242287828579
-	prime64x5        = 2870177450012600261
+	prime64x1 = 11400714785074694791
+	prime64x2 = 14029467366897019727
+	prime64x3 = 1609587929392839161
+	prime64x4 = 9650029242287828579
+	prime64x5 = 2870177450012600261
 )
 
 var (
@@ -33,7 +33,7 @@ func Checksum64S(in []byte, seed uint64) (h uint64) {
 			v3 = seed + 0
 			v4 = seed - prime64x1
 		)
-		for ; i < l-32; i += 32 {
+		for ; i <= l-32; i += 32 {
 			v1 += br.Uint64(i) * prime64x2
 			v1 = rotl64(v1, 31) * prime64x1
 
@@ -77,7 +77,7 @@ func Checksum64S(in []byte, seed uint64) (h uint64) {
 
 	h += uint64(l)
 
-	for ; i < l-8; i += 8 {
+	for ; i <= l-8; i += 8 {
 		k := br.Uint64(i)
 		k *= prime64x2
 		k = rotl64(k, 31)
@@ -86,7 +86,7 @@ func Checksum64S(in []byte, seed uint64) (h uint64) {
 		h = rotl64(h, 27)*prime64x1 + prime64x4
 	}
 
-	for ; i < l-4; i += 4 {
+	for ; i <= l-4; i += 4 {
 		h ^= uint64(br.Uint32(i)) * prime64x1
 		h = rotl64(h, 23)*prime64x2 + prime64x3
 	}
@@ -110,14 +110,24 @@ func Checksum64(in []byte) uint64 {
 	return Checksum64S(in, 0)
 }
 
-type xxHash64 struct {
+// ChecksumString64 returns the checksum of the input data, without creating a copy, with the seed set to 0.
+func ChecksumString64(s string) uint64 {
+	return ChecksumString64S(s, 0)
+}
+
+type XXHash64 struct {
 	ln                   uint64
 	seed, v1, v2, v3, v4 uint64
 	mem                  []byte
 }
 
+var _ interface {
+	hash.Hash64
+	WriteString(string) (int, error)
+} = (*XXHash64)(nil)
+
 // Size returns the number of bytes Sum will return.
-func (xx *xxHash64) Size() int {
+func (xx *XXHash64) Size() int {
 	return 8
 }
 
@@ -125,13 +135,13 @@ func (xx *xxHash64) Size() int {
 // The Write method must be able to accept any amount
 // of data, but it may operate more efficiently if all writes
 // are a multiple of the block size.
-func (xx *xxHash64) BlockSize() int {
+func (xx *XXHash64) BlockSize() int {
 	return 32
 }
 
 // NewS64 creates a new hash.Hash64 computing the 64bit xxHash checksum starting with the specific seed.
-func NewS64(seed uint64) (xx hash.Hash64) {
-	xx = &xxHash64{
+func NewS64(seed uint64) (xx *XXHash64) {
+	xx = &XXHash64{
 		seed: seed,
 		mem:  make([]byte, 32),
 	}
@@ -140,11 +150,11 @@ func NewS64(seed uint64) (xx hash.Hash64) {
 }
 
 // New64 creates a new hash.Hash64 computing the 64bit xxHash checksum starting with the seed set to 0x0.
-func New64() hash.Hash64 {
+func New64() *XXHash64 {
 	return NewS64(0)
 }
 
-func (xx *xxHash64) Reset() {
+func (xx *XXHash64) Reset() {
 	xx.v1 = xx.seed + prime64x1 + prime64x2
 	xx.v2 = xx.seed + prime64x2
 	xx.v3 = xx.seed
@@ -153,14 +163,14 @@ func (xx *xxHash64) Reset() {
 	xx.mem = xx.mem[:0]
 }
 
-func (xx *xxHash64) Write(in []byte) (n int, err error) {
+func (xx *XXHash64) Write(in []byte) (n int, err error) {
 	i, l, ml := 0, len(in), len(xx.mem)
 	xx.ln += uint64(l)
 	if d := 32 - ml; ml > 0 && ml+l > 32 {
 		xx.mem = append(xx.mem, in[:d]...)
 		in = in[d:]
 		ml, l = 32, len(in)
-	} else if ml+l <= 32 {
+	} else if ml+l < 32 {
 		xx.mem = append(xx.mem, in...)
 		return l, nil
 	}
@@ -190,7 +200,7 @@ func (xx *xxHash64) Write(in []byte) (n int, err error) {
 	}
 	br := newbyteReader(in)
 	if l >= 32 {
-		for ; i < l-32; i += 32 {
+		for ; i <= l-32; i += 32 {
 			xx.v1 += br.Uint64(i) * prime64x2
 			xx.v1 = rotl64(xx.v1, 31)
 			xx.v1 *= prime64x1
@@ -224,7 +234,11 @@ func (xx *xxHash64) Write(in []byte) (n int, err error) {
 	return l, nil
 }
 
-func (xx *xxHash64) Sum64() (h uint64) {
+func (xx *XXHash64) WriteString(s string) (int, error) {
+	return writeString(xx, s)
+}
+
+func (xx *XXHash64) Sum64() (h uint64) {
 	i, l := 0, len(xx.mem)
 	v1, v2, v3, v4 := xx.v1, xx.v2, xx.v3, xx.v4
 	if xx.ln >= 32 {
@@ -260,7 +274,7 @@ func (xx *xxHash64) Sum64() (h uint64) {
 	h += xx.ln
 	if len(xx.mem) > 0 {
 		br := newbyteReader(xx.mem)
-		for ; i < l-8; i += 8 {
+		for ; i <= l-8; i += 8 {
 			k := br.Uint64(i)
 			k *= prime64x2
 			k = rotl64(k, 31)
@@ -269,7 +283,7 @@ func (xx *xxHash64) Sum64() (h uint64) {
 			h = rotl64(h, 27)*prime64x1 + prime64x4
 		}
 
-		for ; i < l-4; i += 4 {
+		for ; i <= l-4; i += 4 {
 			h ^= uint64(br.Uint32(i)) * prime64x1
 			h = rotl64(h, 23)*prime64x2 + prime64x3
 		}
@@ -290,7 +304,20 @@ func (xx *xxHash64) Sum64() (h uint64) {
 
 // Sum appends the current hash to b and returns the resulting slice.
 // It does not change the underlying hash state.
-func (xx *xxHash64) Sum(in []byte) []byte {
+func (xx *XXHash64) Sum(in []byte) []byte {
 	s := xx.Sum64()
 	return append(in, byte(s>>56), byte(s>>48), byte(s>>40), byte(s>>32), byte(s>>24), byte(s>>16), byte(s>>8), byte(s))
+}
+
+func swap32(x uint32) uint32 {
+	return ((x << 24) & 0xff000000) |
+		((x << 8) & 0x00ff0000) |
+		((x >> 8) & 0x0000ff00) |
+		((x >> 24) & 0x000000ff)
+}
+
+func swap64(x uint64) uint64 {
+	x = (0xff00ff00ff00ff & (x >> 8)) | ((0xff00ff00ff00ff & x) << 8)
+	x = (0xffff0000ffff & (x >> 16)) | ((0xffff0000ffff & x) << 16)
+	return (0xffffffff & (x >> 32)) | ((0xffffffff & x) << 32)
 }

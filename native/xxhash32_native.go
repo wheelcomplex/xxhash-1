@@ -3,11 +3,11 @@ package xxhash
 import "hash"
 
 const (
-	prime32x1 uint32 = 2654435761
-	prime32x2        = 2246822519
-	prime32x3        = 3266489917
-	prime32x4        = 668265263
-	prime32x5        = 374761393
+	prime32x1 = 2654435761
+	prime32x2 = 2246822519
+	prime32x3 = 3266489917
+	prime32x4 = 668265263
+	prime32x5 = 374761393
 )
 
 func rotl32(x, r uint32) uint32 {
@@ -25,7 +25,7 @@ func Checksum32S(in []byte, seed uint32) (h uint32) {
 			v3 = seed + 0
 			v4 = seed - prime32x1
 		)
-		for ; i < l-16; i += 16 {
+		for ; i <= l-16; i += 16 {
 			v1 += br.Uint32(i) * prime32x2
 			v1 = rotl32(v1, 13)
 			v1 *= prime32x1
@@ -50,7 +50,7 @@ func Checksum32S(in []byte, seed uint32) (h uint32) {
 	}
 
 	h += uint32(l)
-	for ; i < l-4; i += 4 {
+	for ; i <= l-4; i += 4 {
 		h += br.Uint32(i) * prime32x3
 		h = rotl32(h, 17) * prime32x4
 	}
@@ -69,19 +69,29 @@ func Checksum32S(in []byte, seed uint32) (h uint32) {
 	return
 }
 
-// Checksum32 returns the checksum of the input data with the seed set to 0
+// Checksum32 returns the checksum of the input data with the seed set to 0.
 func Checksum32(in []byte) uint32 {
 	return Checksum32S(in, 0)
 }
 
-type xxHash32 struct {
+// ChecksumString32 returns the checksum of the input data, without creating a copy, with the seed set to 0.
+func ChecksumString32(s string) uint32 {
+	return ChecksumString32S(s, 0)
+}
+
+type XXHash32 struct {
 	ln                   uint64
 	seed, v1, v2, v3, v4 uint32
 	mem                  []byte
 }
 
+var _ interface {
+	hash.Hash32
+	WriteString(string) (int, error)
+} = (*XXHash32)(nil)
+
 // Size returns the number of bytes Sum will return.
-func (xx *xxHash32) Size() int {
+func (xx *XXHash32) Size() int {
 	return 4
 }
 
@@ -89,13 +99,13 @@ func (xx *xxHash32) Size() int {
 // The Write method must be able to accept any amount
 // of data, but it may operate more efficiently if all writes
 // are a multiple of the block size.
-func (xx *xxHash32) BlockSize() int {
+func (xx *XXHash32) BlockSize() int {
 	return 16
 }
 
 // NewS32 creates a new hash.Hash32 computing the 32bit xxHash checksum starting with the specific seed.
-func NewS32(seed uint32) (xx hash.Hash32) {
-	xx = &xxHash32{
+func NewS32(seed uint32) (xx *XXHash32) {
+	xx = &XXHash32{
 		seed: seed,
 		mem:  make([]byte, 16),
 	}
@@ -103,12 +113,12 @@ func NewS32(seed uint32) (xx hash.Hash32) {
 	return
 }
 
-// New32 creates a new hash.Hash32 computing the 32bit xxHash checksum starting with the seed set to 0x0.
-func New32() hash.Hash32 {
-	return NewS32(0x0)
+// New32 creates a new hash.Hash32 computing the 32bit xxHash checksum starting with the seed set to 0.
+func New32() *XXHash32 {
+	return NewS32(0)
 }
 
-func (xx *xxHash32) Reset() {
+func (xx *XXHash32) Reset() {
 	xx.v1 = xx.seed + prime32x1 + prime32x2
 	xx.v2 = xx.seed + prime32x2
 	xx.v3 = xx.seed
@@ -117,7 +127,7 @@ func (xx *xxHash32) Reset() {
 	xx.mem = xx.mem[:0]
 }
 
-func (xx *xxHash32) Write(in []byte) (n int, err error) {
+func (xx *XXHash32) Write(in []byte) (n int, err error) {
 	i, l, ml := 0, len(in), len(xx.mem)
 	xx.ln += uint64(l)
 
@@ -125,7 +135,7 @@ func (xx *xxHash32) Write(in []byte) (n int, err error) {
 		xx.mem = append(xx.mem, in[:d]...)
 		in = in[d:]
 		ml, l = 16, len(in)
-	} else if ml+l <= 16 {
+	} else if ml+l < 16 {
 		xx.mem = append(xx.mem, in...)
 		return l, nil
 	}
@@ -155,7 +165,7 @@ func (xx *xxHash32) Write(in []byte) (n int, err error) {
 	}
 	br := newbyteReader(in)
 	if l >= 16 {
-		for ; i < l-16; i += 16 {
+		for ; i <= l-16; i += 16 {
 			xx.v1 += br.Uint32(i) * prime32x2
 			xx.v1 = rotl32(xx.v1, 13)
 			xx.v1 *= prime32x1
@@ -190,7 +200,11 @@ func (xx *xxHash32) Write(in []byte) (n int, err error) {
 	return l, nil
 }
 
-func (xx *xxHash32) Sum32() (h uint32) {
+func (xx *XXHash32) WriteString(s string) (int, error) {
+	return writeString(xx, s)
+}
+
+func (xx *XXHash32) Sum32() (h uint32) {
 	i, l := 0, len(xx.mem)
 	if xx.ln >= 16 {
 		h = rotl32(xx.v1, 1) + rotl32(xx.v2, 7) + rotl32(xx.v3, 12) + rotl32(xx.v4, 18)
@@ -202,7 +216,7 @@ func (xx *xxHash32) Sum32() (h uint32) {
 
 	if len(xx.mem) > 0 {
 		br := newbyteReader(xx.mem)
-		for ; i < l-4; i += 4 {
+		for ; i <= l-4; i += 4 {
 			h += br.Uint32(i) * prime32x3
 			h = rotl32(h, 17) * prime32x4
 		}
@@ -223,7 +237,7 @@ func (xx *xxHash32) Sum32() (h uint32) {
 
 // Sum appends the current hash to b and returns the resulting slice.
 // It does not change the underlying hash state.
-func (xx *xxHash32) Sum(in []byte) []byte {
+func (xx *XXHash32) Sum(in []byte) []byte {
 	s := xx.Sum32()
 	return append(in, byte(s>>24), byte(s>>16), byte(s>>8), byte(s))
 }
