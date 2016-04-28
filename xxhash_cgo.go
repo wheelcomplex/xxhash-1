@@ -1,4 +1,5 @@
 // +build cgo
+// +build forcecgo !go1.7
 
 package xxhash
 
